@@ -1,0 +1,14 @@
+{
+  "blocks": {"data": [], "totalPages": 0, "totalCount": 0},
+  "transactions": {"data": [], "totalPages": 0, "totalCount": 0},
+  "chain": {
+    "total_chain_value": "0",
+    "best_block_hash": "Mock Hash",
+    "best_height": "0",
+    "orchard_pool_value": "0",
+    "size_on_disk": "0"
+  },
+  "blocks/total": 0,
+  "transactions/total": 0,
+  "metrics/transactions": {"data": [], "startTimestamp": "", "endTimestamp": ""}
+}
