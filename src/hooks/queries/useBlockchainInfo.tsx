@@ -6,9 +6,11 @@ import {
   fetchNodeStatus,
   fetchDagStats,
   fetchConsensusWave,
-  fetchValidators
+  fetchValidators,
+  fetchBlockConfirmationStatus,
+  fetchAllBlocksConfirmationStatus
 } from "../../constants/api-routes";
-import { ConsensusWave, DAGStats, NodeStatus, Validators } from "../../types";
+import { ConsensusWave, DAGStats, NodeStatus, Validators, BlockConfirmationStatus, AllBlocksConfirmationStatus } from "../../types";
 
 // Main blockchain info hook that combines data from multiple endpoints
 export default function useBlockchainInfo() {
@@ -194,6 +196,71 @@ export function useValidators() {
     initialData: {
       count: 0,
       validators: []
+    }
+  });
+}
+
+// Block confirmation status hook for a specific block
+export function useBlockConfirmationStatus(blockHash: string) {
+  return useQuery<BlockConfirmationStatus>({
+    queryKey: ["query_block_confirmation_key", blockHash],
+    queryFn: async () => {
+      console.log("DEBUG useBlockConfirmationStatus: Starting fetch for block:", blockHash);
+      try {
+        const status = await fetchBlockConfirmationStatus(blockHash);
+        console.log("DEBUG useBlockConfirmationStatus: Received status:", status);
+        return status;
+      } catch (error) {
+        console.error("DEBUG useBlockConfirmationStatus: Error fetching status:", error);
+        throw error;
+      }
+    },
+    enabled: !!blockHash && blockHash.length > 0,
+    refetchInterval: 2000, // Refresh every 2 seconds for real-time updates
+    retry: 3,
+    staleTime: 1000,
+    cacheTime: 2000,
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 10000),
+    initialData: {
+      status: "unknown",
+      message: "Loading...",
+      is_finalized: false,
+      votes: {
+        commit_votes: 0,
+        total_votes: 0,
+        required_votes: 0,
+        total_validators: 0,
+      },
+      wave: 0,
+      current_wave: 0,
+    }
+  });
+}
+
+// All blocks confirmation status hook
+export function useAllBlocksConfirmationStatus() {
+  return useQuery<AllBlocksConfirmationStatus>({
+    queryKey: ["query_all_blocks_confirmation_key"],
+    queryFn: async () => {
+      console.log("DEBUG useAllBlocksConfirmationStatus: Starting fetch...");
+      try {
+        const status = await fetchAllBlocksConfirmationStatus();
+        console.log("DEBUG useAllBlocksConfirmationStatus: Received status:", status);
+        return status;
+      } catch (error) {
+        console.error("DEBUG useAllBlocksConfirmationStatus: Error fetching status:", error);
+        throw error;
+      }
+    },
+    refetchInterval: 2000, // Refresh every 2 seconds for real-time updates
+    retry: 3,
+    staleTime: 1000,
+    cacheTime: 2000,
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 10000),
+    initialData: {
+      current_wave: 0,
+      total_finalized_waves: 0,
+      blocks: {}
     }
   });
 }

@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { Box, Paper, Skeleton, Chip, Alert } from "@mui/material";
+import { Box, Paper, Skeleton, Chip, Alert, Tooltip, LinearProgress, Typography } from "@mui/material";
 import Table from "../components/Table";
 import React, { useMemo, useEffect, useState } from "react";
 import { BlockData, ITableColumn } from "../types";
@@ -12,6 +12,8 @@ import { useRouter } from "next/router";
 import { format } from "date-fns";
 import { fetchBlocks } from "../constants/api-routes";
 import { useQuery } from "@tanstack/react-query";
+import { useAllBlocksConfirmationStatus } from "../hooks/queries/useBlockchainInfo";
+import { CheckCircle, Schedule, HowToVote, Pending, Error as ErrorIcon } from "@mui/icons-material";
 
 interface IBlockTableProps<T> {
   data?: Array<T>;
@@ -20,6 +22,83 @@ interface IBlockTableProps<T> {
   isRowLoaded?: ({ index }) => void;
   rowCount?: number;
 }
+
+// Helper function to get confirmation status display
+const getConfirmationStatusDisplay = (blockHash: string, allConfirmationData: any) => {
+  const blockStatus = allConfirmationData?.blocks?.[blockHash];
+  
+  if (!blockStatus) {
+    return {
+      status: "unknown",
+      icon: <Pending sx={{ fontSize: 16 }} />,
+      color: "default" as const,
+      label: "Unknown",
+      progress: 0,
+      votes: "N/A"
+    };
+  }
+  
+  const { status, is_finalized, commit_votes, total_validators } = blockStatus;
+  const progress = total_validators > 0 ? (commit_votes / total_validators) * 100 : 0;
+  const votes = `${commit_votes}/${total_validators}`;
+  
+  switch (status) {
+    case "finalized":
+      return {
+        status: "finalized",
+        icon: <CheckCircle sx={{ fontSize: 16 }} />,
+        color: "success" as const,
+        label: "Finalized",
+        progress: 100,
+        votes
+      };
+    case "confirming":
+      return {
+        status: "confirming",
+        icon: <HowToVote sx={{ fontSize: 16 }} />,
+        color: "info" as const,
+        label: "Confirming",
+        progress,
+        votes
+      };
+    case "voting":
+      return {
+        status: "voting",
+        icon: <HowToVote sx={{ fontSize: 16 }} />,
+        color: "warning" as const,
+        label: "Voting",
+        progress,
+        votes
+      };
+    case "proposed":
+      return {
+        status: "proposed",
+        icon: <Schedule sx={{ fontSize: 16 }} />,
+        color: "default" as const,
+        label: "Proposed",
+        progress: 0,
+        votes: "0/0"
+      };
+    case "pending":
+      return {
+        status: "pending",
+        icon: <Pending sx={{ fontSize: 16 }} />,
+        color: "default" as const,
+        label: "Pending",
+        progress: 0,
+        votes: "0/0"
+      };
+    default:
+      return {
+        status: "unknown",
+        icon: <ErrorIcon sx={{ fontSize: 16 }} />,
+        color: "error" as const,
+        label: "Unknown",
+        progress: 0,
+        votes: "N/A"
+      };
+  }
+};
 
 export default function BlockTable(props: IBlockTableProps<BlockData>) {
   const router = useRouter();
@@ -47,6 +126,9 @@ export default function BlockTable(props: IBlockTableProps<BlockData>) {
     refetchOnWindowFocus: true
   });
 
+  // Fetch all blocks confirmation status
+  const { data: allConfirmationData, isLoading: isLoadingConfirmation, error: confirmationError } = useAllBlocksConfirmationStatus();
+
   useEffect(() => {
     if (error) {
       console.error("BlockTable: Error in useQuery:", error);
@@ -59,19 +141,20 @@ export default function BlockTable(props: IBlockTableProps<BlockData>) {
     console.log("BlockTable: Current data update:", {
       propsData: propsData ? `${propsData.length} blocks` : "none",
       fetchedBlocks: fetchedBlocks ? `${fetchedBlocks.length} blocks` : "none",
+      allConfirmationData: allConfirmationData ? `${Object.keys(allConfirmationData.blocks || {}).length} confirmations` : "none",
       isLoading,
       isRefetching,
       isFetching,
+      isLoadingConfirmation,
       error: error ? error.message : "none",
+      confirmationError: confirmationError ? confirmationError.message : "none",
       fetchError
     });
-  }, [propsData, fetchedBlocks, isLoading, isRefetching, isFetching, error, fetchError]);
+  }, [propsData, fetchedBlocks, allConfirmationData, isLoading, isRefetching, isFetching, isLoadingConfirmation, error, confirmationError, fetchError]);
   
   const data = propsData || fetchedBlocks || [];
   const rowData = Array.isArray(data) ? data : [];
-  const isTableLoading = isLoading || (useQueryProps
-    ? useQueryProps.isLoading
-    : false);
+  const isTableLoading = isLoading || (useQueryProps ? useQueryProps.isLoading : false);
     
   const columns: Array<ITableColumn<BlockData>> = useMemo(
     () => [
@@ -79,7 +162,7 @@ export default function BlockTable(props: IBlockTableProps<BlockData>) {
         dataKey: "wave",
         label: "Wave",
         style: {},
-        width: 15,
+        width: 10,
         render: (item) =>
           isTableLoading ? (
             <Skeleton variant="text" />
@@ -96,7 +179,7 @@ export default function BlockTable(props: IBlockTableProps<BlockData>) {
         dataKey: "hash",
         label: "Hash",
         style: {},
-        width: 35,
+        width: 25,
         render: (item) =>
           isTableLoading ? (
             <Skeleton variant="text" />
@@ -117,10 +200,51 @@ export default function BlockTable(props: IBlockTableProps<BlockData>) {
           ),
       },
       {
+        dataKey: "confirmationStatus",
+        label: "Status",
+        style: {},
+        width: 20,
+        render: (item) => {
+          if (isTableLoading || isLoadingConfirmation) {
+            return <Skeleton variant="text" />;
+          }
+          
+          const blockHash = item?.hash || "";
+          const confirmationDisplay = getConfirmationStatusDisplay(blockHash, allConfirmationData);
+          
+          return (
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+              <Tooltip title={`${confirmationDisplay.label} - Votes: ${confirmationDisplay.votes}`}>
+                <Chip 
+                  icon={confirmationDisplay.icon}
+                  label={confirmationDisplay.label}
+                  color={confirmationDisplay.color}
+                  size="small"
+                  sx={{ fontWeight: "bold", minWidth: 100 }}
+                />
+              </Tooltip>
+              {confirmationDisplay.status !== "finalized" && confirmationDisplay.progress > 0 && (
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <LinearProgress 
+                    variant="determinate" 
+                    value={confirmationDisplay.progress} 
+                    sx={{ flexGrow: 1, height: 4, borderRadius: 2 }}
+                    color={confirmationDisplay.color}
+                  />
+                  <Typography variant="caption" sx={{ fontSize: '0.6rem', minWidth: 30 }}>
+                    {confirmationDisplay.votes}
+                  </Typography>
+                </Box>
+              )}
+            </Box>
+          );
+        },
+      },
+      {
         dataKey: "validator",
         label: "Validator",
         style: {},
-        width: 20,
+        width: 15,
         render: (item) =>
           isTableLoading ? (
             <Skeleton variant="text" />
@@ -137,7 +261,7 @@ export default function BlockTable(props: IBlockTableProps<BlockData>) {
         dataKey: "timestamp",
         label: "Time",
         style: {},
-        width: 25,
+        width: 20,
         render: (item) =>
           isTableLoading ? (
             <Skeleton variant="text" />
@@ -161,22 +285,8 @@ export default function BlockTable(props: IBlockTableProps<BlockData>) {
             </StyledBodyTableTypography>
           ),
       },
-      {
-        dataKey: "round",
-        label: "Round",
-        style: {},
-        width: 10,
-        render: (item) =>
-          isTableLoading ? (
-            <Skeleton variant="text" />
-          ) : (
-            <StyledBodyTableTypography fontWeight="400" variant="body2">
-              {typeof item?.round === 'number' ? item.round : 0}
-            </StyledBodyTableTypography>
-          ),
-      },
     ],
-    [isTableLoading, router]
+    [isTableLoading, isLoadingConfirmation, allConfirmationData, router]
   );
 
   const handleRowClick = (index) => {

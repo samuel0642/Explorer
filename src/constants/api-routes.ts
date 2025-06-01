@@ -109,8 +109,7 @@ async function fetchBlocks(): Promise<Array<BlockData>> {
         'Pragma': 'no-cache',
         'Expires': '0'
       },
-      cache: 'no-store',
-      next: { revalidate: 0 }
+      cache: 'no-store'
     });
     
     if (!result.ok) {
@@ -148,8 +147,7 @@ async function fetchTransactions(): Promise<Array<TransactionData>> {
         'Pragma': 'no-cache',
         'Expires': '0'
       },
-      cache: 'no-store',
-      next: { revalidate: 0 }
+      cache: 'no-store'
     });
     
     if (!result.ok) {
@@ -171,8 +169,7 @@ async function fetchTransactions(): Promise<Array<TransactionData>> {
           'Pragma': 'no-cache',
           'Expires': '0'
         },
-        cache: 'no-store',
-        next: { revalidate: 0 }
+        cache: 'no-store'
       });
       
       if (blocksResponse.ok) {
@@ -281,8 +278,7 @@ async function fetchNodeStatus(): Promise<any> {
         'Pragma': 'no-cache',
         'Expires': '0'
       },
-      cache: 'no-store',
-      next: { revalidate: 0 }
+      cache: 'no-store'
     });
     
     console.log("NODE STATUS: Response status:", response.status);
@@ -328,8 +324,7 @@ async function fetchDagStats(): Promise<any> {
         'Pragma': 'no-cache',
         'Expires': '0'
       },
-      cache: 'no-store',
-      next: { revalidate: 0 }
+      cache: 'no-store'
     });
     
     if (!response.ok) {
@@ -369,8 +364,7 @@ async function fetchConsensusWave(): Promise<any> {
         'Pragma': 'no-cache',
         'Expires': '0'
       },
-      cache: 'no-store',
-      next: { revalidate: 0 }
+      cache: 'no-store'
     });
 
     if (!response.ok) {
@@ -410,8 +404,7 @@ async function fetchValidators(): Promise<any> {
         'Pragma': 'no-cache',
         'Expires': '0'
       },
-      cache: 'no-store',
-      next: { revalidate: 0 }
+      cache: 'no-store'
     });
 
     if (!response.ok) {
@@ -516,6 +509,108 @@ async function fetchBlockCount() {
   }
 }
 
+async function fetchBlockConfirmationStatus(blockHash: string): Promise<any> {
+  try {
+    console.log("BLOCK CONFIRMATION: Fetching confirmation status for block:", blockHash);
+    
+    // Add timestamp to prevent caching
+    const timeStamp = new Date().getTime();
+    const urlWithNoCache = `${baseUrl}/consensus/block_confirmation?hash=${blockHash}&_nocache=${timeStamp}`;
+    
+    const response = await fetch(urlWithNoCache, {
+      method: 'GET',
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0'
+      },
+      cache: 'no-store'
+    });
+
+    if (!response.ok) {
+      console.error(`BLOCK CONFIRMATION: Failed to fetch confirmation status: ${response.status} ${response.statusText}`);
+      return {
+        block_hash: blockHash,
+        status: "unknown",
+        message: "Failed to fetch confirmation status",
+        is_finalized: false,
+        votes: {
+          commit_votes: 0,
+          total_votes: 0,
+          required_votes: 0,
+          total_validators: 0,
+        },
+        wave: 0,
+        current_wave: 0,
+      };
+    }
+    
+    const data = await response.json();
+    console.log("BLOCK CONFIRMATION: Successfully fetched confirmation status:", data);
+    return data;
+  } catch (error) {
+    console.error("BLOCK CONFIRMATION: Unhandled error fetchBlockConfirmationStatus(): ", error);
+    return {
+      block_hash: blockHash,
+      status: "error",
+      message: "Error fetching confirmation status",
+      is_finalized: false,
+      votes: {
+        commit_votes: 0,
+        total_votes: 0,
+        required_votes: 0,
+        total_validators: 0,
+      },
+      wave: 0,
+      current_wave: 0,
+    };
+  }
+}
+
+async function fetchAllBlocksConfirmationStatus(): Promise<any> {
+  try {
+    console.log("ALL BLOCKS CONFIRMATION: Fetching confirmation status for all blocks");
+    
+    // Add timestamp to prevent caching
+    const timeStamp = new Date().getTime();
+    const urlWithNoCache = `${baseUrl}/consensus/block_confirmation?_nocache=${timeStamp}`;
+    
+    const response = await fetch(urlWithNoCache, {
+      method: 'GET',
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0'
+      },
+      cache: 'no-store'
+    });
+
+    if (!response.ok) {
+      console.error(`ALL BLOCKS CONFIRMATION: Failed to fetch confirmation status: ${response.status} ${response.statusText}`);
+      return {
+        current_wave: 0,
+        total_finalized_waves: 0,
+        blocks: {}
+      };
+    }
+    
+    const data = await response.json();
+    console.log("ALL BLOCKS CONFIRMATION: Successfully fetched confirmation status:", data);
+    return data;
+  } catch (error) {
+    console.error("ALL BLOCKS CONFIRMATION: Unhandled error fetchAllBlocksConfirmationStatus(): ", error);
+    return {
+      current_wave: 0,
+      total_finalized_waves: 0,
+      blocks: {}
+    };
+  }
+}
+
 export {
   baseUrl,
   apiRoutes,
@@ -531,5 +626,7 @@ export {
   fetchNodeStatus,
   fetchDagStats,
   fetchConsensusWave,
-  fetchValidators
+  fetchValidators,
+  fetchBlockConfirmationStatus,
+  fetchAllBlocksConfirmationStatus
 };

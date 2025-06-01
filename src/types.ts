@@ -32,6 +32,7 @@ type BlockData = {
   parentHash?: string;
   stateRoot?: string;
   transactions?: Array<TransactionData>;
+  confirmationStatus?: BlockConfirmationStatus;
 };
 
 type TransactionData = {
@@ -70,6 +71,34 @@ type Validators = {
   validators: string[];
 };
 
+type BlockConfirmationStatus = {
+  status: "finalized" | "confirming" | "voting" | "proposed" | "pending" | "not_found";
+  message: string;
+  is_finalized: boolean;
+  votes: {
+    commit_votes: number;
+    total_votes: number;
+    required_votes: number;
+    total_validators: number;
+  };
+  wave: number;
+  current_wave: number;
+};
+
+type AllBlocksConfirmationStatus = {
+  current_wave: number;
+  total_finalized_waves: number;
+  blocks: Record<string, {
+    wave: number;
+    status: string;
+    is_finalized: boolean;
+    commit_votes: number;
+    total_votes: number;
+    required_votes: number;
+    total_validators: number;
+  }>;
+};
+
 export { 
   type PaginationParameters, 
   type HookError, 
@@ -80,5 +109,7 @@ export {
   type NodeStatus,
   type DAGStats,
   type ConsensusWave,
-  type Validators
+  type Validators,
+  type BlockConfirmationStatus,
+  type AllBlocksConfirmationStatus
 };
