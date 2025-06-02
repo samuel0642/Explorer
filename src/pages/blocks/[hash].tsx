@@ -20,7 +20,12 @@ import {
   Alert,
   IconButton,
   Breadcrumbs,
-  Link
+  Link,
+  Pagination,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem
 } from '@mui/material';
 import { ArrowBack, ContentCopy } from '@mui/icons-material';
 import { format } from 'date-fns';
@@ -33,6 +38,11 @@ const BlockDetail = () => {
   const [block, setBlock] = useState<BlockData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  
+  // Pagination state for transactions
+  const [currentPage, setCurrentPage] = useState(1);
+  const [transactionsPerPage, setTransactionsPerPage] = useState(50);
+  const [displayedTransactions, setDisplayedTransactions] = useState<TransactionData[]>([]);
 
   useEffect(() => {
     const fetchBlockDetails = async () => {
@@ -57,16 +67,24 @@ const BlockDetail = () => {
 
         // Try to fetch transactions for this block
         try {
-          const txResponse = await fetch(`/api/transactions?count=100`);
+          // Fetch more transactions to increase chance of finding transactions for this block
+          // Since each block can have up to 40K transactions, we need to fetch enough
+          // to cover multiple recent blocks
+          const txResponse = await fetch(`/api/transactions?count=5000`);
           if (txResponse.ok) {
             const transactions = await txResponse.json();
             const blockTransactions = transactions.filter(
               (tx: TransactionData) => tx.blockHash === hash
             );
             foundBlock.transactions = blockTransactions;
+            console.log(`Found ${blockTransactions.length} transactions for block ${hash}`);
+          } else {
+            console.warn('Failed to fetch transactions:', txResponse.statusText);
           }
         } catch (txError) {
           console.warn('Could not fetch transactions for block:', txError);
+          // Set empty array to show "No transactions found" message instead of hiding the section
+          foundBlock.transactions = [];
         }
 
         setBlock(foundBlock);
@@ -79,6 +97,15 @@ const BlockDetail = () => {
 
     fetchBlockDetails();
   }, [hash]);
+
+  // Update displayed transactions when block or pagination changes
+  useEffect(() => {
+    if (block?.transactions) {
+      const startIndex = (currentPage - 1) * transactionsPerPage;
+      const endIndex = startIndex + transactionsPerPage;
+      setDisplayedTransactions(block.transactions.slice(startIndex, endIndex));
+    }
+  }, [block, currentPage, transactionsPerPage]);
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
@@ -252,10 +279,41 @@ const BlockDetail = () => {
         {block.transactions && block.transactions.length > 0 && (
           <Card>
             <CardContent>
-              <Typography variant="h6" gutterBottom>
-                Transactions ({block.transactions.length})
-              </Typography>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                <Typography variant="h6">
+                  Transactions ({block.transactions.length.toLocaleString()})
+                </Typography>
+                
+                {/* Pagination Controls */}
+                <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+                  <FormControl size="small" sx={{ minWidth: 100 }}>
+                    <InputLabel>Per Page</InputLabel>
+                    <Select
+                      value={transactionsPerPage}
+                      label="Per Page"
+                      onChange={(e) => {
+                        setTransactionsPerPage(Number(e.target.value));
+                        setCurrentPage(1); // Reset to first page
+                      }}
+                    >
+                      <MenuItem value={25}>25</MenuItem>
+                      <MenuItem value={50}>50</MenuItem>
+                      <MenuItem value={100}>100</MenuItem>
+                      <MenuItem value={500}>500</MenuItem>
+                    </Select>
+                  </FormControl>
+                </Box>
+              </Box>
+              
               <Divider sx={{ mb: 3 }} />
+
+              {/* Performance warning for large transaction sets */}
+              {block.transactions.length > 10000 && (
+                <Alert severity="info" sx={{ mb: 2 }}>
+                  This block contains {block.transactions.length.toLocaleString()} transactions. 
+                  Use pagination below to browse through them efficiently.
+                </Alert>
+              )}
 
               <TableContainer component={Paper}>
                 <Table>
@@ -270,7 +328,7 @@ const BlockDetail = () => {
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {block.transactions.map((tx) => (
+                    {displayedTransactions.map((tx) => (
                       <TableRow key={tx.hash}>
                         <TableCell>
                           <Typography variant="body2" sx={{ fontFamily: 'monospace' }}>
@@ -305,6 +363,29 @@ const BlockDetail = () => {
                   </TableBody>
                 </Table>
               </TableContainer>
+
+              {/* Pagination */}
+              {block.transactions.length > transactionsPerPage && (
+                <Box sx={{ display: 'flex', justifyContent: 'center', mt: 3 }}>
+                  <Pagination
+                    count={Math.ceil(block.transactions.length / transactionsPerPage)}
+                    page={currentPage}
+                    onChange={(event, page) => setCurrentPage(page)}
+                    color="primary"
+                    size="large"
+                    showFirstButton
+                    showLastButton
+                  />
+                </Box>
+              )}
+              
+              {/* Transaction Stats */}
+              <Box sx={{ mt: 2, p: 2, bgcolor: 'background.default', borderRadius: 1 }}>
+                <Typography variant="body2" color="text.secondary">
+                  Showing {displayedTransactions.length} of {block.transactions.length.toLocaleString()} transactions 
+                  (Page {currentPage} of {Math.ceil(block.transactions.length / transactionsPerPage)})
+                </Typography>
+              </Box>
             </CardContent>
           </Card>
         )}
